@@ -1,4 +1,4 @@
-﻿name: MySQL Benchmark
+name: MySQL Benchmark
 
 on:
   workflow_dispatch:
@@ -6,6 +6,7 @@ on:
 jobs:
   bench:
     runs-on: ubuntu-latest
+
     services:
       mysql:
         image: mysql:8.0
@@ -19,29 +20,51 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Wait for MySQL
         run: |
           for i in {1..30}; do
-            if mysql -h127.0.0.1 -uroot -proot -e 'select 1' >/dev/null 2>&1; then
-              echo 'MySQL ready'; break
+            if mysql -h127.0.0.1 -uroot -proot -e "SELECT 1" >/dev/null 2>&1; then
+              echo "MySQL ready"
+              break
             fi
-            echo 'Waiting for MySQL...'; sleep 2
+            echo "Waiting for MySQL..."
+            sleep 2
           done
+
       - name: Run schema
         run: |
           mysql -h127.0.0.1 -uroot -proot < sql/schema.sql
+
       - name: Seed (smaller for CI)
         run: |
           # Use smaller sizes in CI to keep run time reasonable
-          sed -e 's/SET @ROWS = 100000;/SET @ROWS = 10000;/' -e 's/SET @USERS = 10000;/SET @USERS = 2000;/' seeds/seeds.sql > /tmp/ci_seeds.sql
-          printf 'SET @@cte_max_recursion_depth = 10000;\n' \ | cat - /tmp/ci_seeds.sql > /tmp/ci_seeds_with_cte.sql mysql -h127.0.0.1 -uroot -proot < /tmp/ci_seeds_with_cte.sql
+          sed -e 's/SET @ROWS = 100000;/SET @ROWS = 10000;/' \
+              -e 's/SET @USERS = 10000;/SET @USERS = 2000;/' \
+              seeds/seeds.sql > /tmp/ci_seeds.sql
+
+          (
+            echo "SET @@cte_max_recursion_depth = 10000;"
+            cat /tmp/ci_seeds.sql
+          ) > /tmp/ci_seeds_with_cte.sql
+
+          mysql -h127.0.0.1 -uroot -proot < /tmp/ci_seeds_with_cte.sql
+
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
+
       - name: Run Node benchmark
         run: |
           npm install mysql2 --no-audit --no-fund
-          BENCH_ITERATIONS=30 MYSQL_HOST=127.0.0.1 MYSQL_PORT=3306 MYSQL_USER=root MYSQL_PASSWORD=root MYSQL_DATABASE=sales_savvy_bench node bench/bench_node.js
+          BENCH_ITERATIONS=30 \
+          MYSQL_HOST=127.0.0.1 \
+          MYSQL_PORT=3306 \
+          MYSQL_USER=root \
+          MYSQL_PASSWORD=root \
+          MYSQL_DATABASE=sales_savvy_bench \
+          node bench/bench_node.js
