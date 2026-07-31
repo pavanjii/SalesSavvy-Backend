@@ -35,8 +35,9 @@ jobs:
       - name: Seed (smaller for CI)
         run: |
           # Use smaller sizes in CI to keep run time reasonable
-          sed -e 's/SET @ROWS = 100000;/SET @ROWS = 10000;/' -e 's/SET @USERS = 10000;/SET @USERS = 2000;/' seeds/seeds.sql > /tmp/ci_seeds.sql
-          mysql -h127.0.0.1 -uroot -proot < /tmp/ci_seeds.sql
+          sed -e 's/SET @ROWS = 100000;/SET @ROWS = 10000;/' -e 's/SET @USERS = 10000;/SET @USERS = 2000;/' seeds/seeds.sql > /tmp/ci_seeds.sql mysql -h127.0.0.1 -uroot -proot < /tmp/ci_seeds.sql
+          sed -e 's/SET @ROWS = 100000;/SET @ROWS = 10000;/' -e 's/SET @USERS = 10000;/SET @USERS = 2000;/' seeds/seeds.sql > /tmp/ci_seeds.sql printf 'SET @@cte_max_recursion_depth = 10000;\n' | cat - /tmp/ci_seeds.sql > /tmp/ci_seeds_with_cte.sql mysql -h127.0.0.1 -uroot -proot < /tmp/ci_seeds_with_cte.sql
+
       - name: Install Node
         uses: actions/setup-node@v4
         with:
