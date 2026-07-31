@@ -1,4 +1,4 @@
-﻿-- seeds/seeds.sql
+-- seeds/seeds.sql
 -- Seed data generator using recursive CTE (MySQL 8+). Configure ROWS to control scale.
 -- WARNING: Large ROWS values can take long in CI. Use a smaller number in CI (e.g., 10_000).
 
