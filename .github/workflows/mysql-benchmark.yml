@@ -22,18 +22,22 @@ jobs:
           --health-retries=10
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Wait for MySQL
         run: |
           for i in {1..30}; do
             if mysql -h127.0.0.1 -uroot -proot -e "SELECT 1" >/dev/null 2>&1; then
-              echo "MySQL ready"
-              break
+              echo "✅ MySQL is ready"
+              exit 0
             fi
             echo "Waiting for MySQL..."
             sleep 2
           done
+
+          echo "❌ MySQL failed to start"
+          exit 1
 
       - name: Run schema
         run: |
@@ -41,30 +45,43 @@ jobs:
 
       - name: Seed (smaller for CI)
         run: |
-          # Use smaller sizes in CI to keep run time reasonable
-          sed -e 's/SET @ROWS = 100000;/SET @ROWS = 10000;/' \
-              -e 's/SET @USERS = 10000;/SET @USERS = 2000;/' \
-              seeds/seeds.sql > /tmp/ci_seeds.sql
+          # Create CI seed script with smaller dataset
+          sed \
+            -e 's/SET @ROWS = 100000;/SET @ROWS = 10000;/' \
+            -e 's/SET @USERS = 10000;/SET @USERS = 2000;/' \
+            seeds/seeds.sql > /tmp/ci_seeds.sql
 
-          (
+          # Prepend session configuration
+          {
             echo "SET @@cte_max_recursion_depth = 10000;"
             cat /tmp/ci_seeds.sql
-          ) > /tmp/ci_seeds_with_cte.sql
+          } > /tmp/ci_seeds_with_cte.sql
 
+          echo "========== First 10 lines =========="
+          head -n 10 /tmp/ci_seeds_with_cte.sql
+
+          echo "========== Hex dump =========="
+          xxd -g 1 -l 128 /tmp/ci_seeds_with_cte.sql
+
+          echo "========== Running seed =========="
           mysql -h127.0.0.1 -uroot -proot < /tmp/ci_seeds_with_cte.sql
 
-      - name: Install Node
+      - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "18"
 
-      - name: Run Node benchmark
+      - name: Install dependencies
         run: |
           npm install mysql2 --no-audit --no-fund
-          BENCH_ITERATIONS=30 \
-          MYSQL_HOST=127.0.0.1 \
-          MYSQL_PORT=3306 \
-          MYSQL_USER=root \
-          MYSQL_PASSWORD=root \
-          MYSQL_DATABASE=sales_savvy_bench \
+
+      - name: Run benchmark
+        env:
+          BENCH_ITERATIONS: 30
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: 3306
+          MYSQL_USER: root
+          MYSQL_PASSWORD: root
+          MYSQL_DATABASE: sales_savvy_bench
+        run: |
           node bench/bench_node.js
